@@ -50,7 +50,7 @@ GoogleAuthenticatorTests >> testClientServer [
 	server randomSecret.
 	"The shared secret is exchanged between the server and the client"
 	sharedSecret := server base32Secret.
-	"The client sets up its authenticator, initialized wit the shared secret"
+	"The client sets up its authenticator, initialized with the shared secret"
 	client := GoogleAuthenticator new.
 	client base32Secret: sharedSecret.
 	"Make sure we're not too close to the end of the current period"

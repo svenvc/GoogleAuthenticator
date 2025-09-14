@@ -39,7 +39,9 @@ Class {
 		'time',
 		'hashMode',
 		'codeLength',
-		'period'
+		'period',
+		'label',
+		'issuer'
 	],
 	#category : 'GoogleAuthenticator',
 	#package : 'GoogleAuthenticator'
@@ -80,6 +82,16 @@ GoogleAuthenticator >> codeLength: count [
 	codeLength := count
 ]
 
+{ #category : 'testing' }
+GoogleAuthenticator >> hasIssuer [
+	^ issuer notNil
+]
+
+{ #category : 'testing' }
+GoogleAuthenticator >> hasLabel [
+	^ label notNil
+]
+
 { #category : 'accessing' }
 GoogleAuthenticator >> hashMode [
 	"Return my hash mode (class)"
@@ -90,6 +102,8 @@ GoogleAuthenticator >> hashMode [
 { #category : 'initialization' }
 GoogleAuthenticator >> hashMode: hashClass [
 	"Set the hash algorithm to use when doing a HMAC. Typically SHA1 (the default) or SHA256."
+	
+	self assert: ({ SHA1 . SHA256 } includes: hashClass).
 	
 	hashMode := hashClass
 ]
@@ -110,6 +124,34 @@ GoogleAuthenticator >> initialize [
 	self codeLength: 6.
 	self period: 30.
 	self useClock
+]
+
+{ #category : 'accessing' }
+GoogleAuthenticator >> issuer [
+	"Return my issuer, the service we are authenticating for, the service who gave us the secret"
+
+	^ issuer ifNil: [ 'unknown-issuer' ]
+]
+
+{ #category : 'initialization' }
+GoogleAuthenticator >> issuer: aString [
+	"Set the issuer to aString, the service we are authenticating for, the service who gave us the secret"
+
+	issuer := aString
+]
+
+{ #category : 'accessing' }
+GoogleAuthenticator >> label [
+	"Return my label, typically a user name or identification"
+
+	^ label ifNil: [ 'unknown-user' ]
+]
+
+{ #category : 'initialization' }
+GoogleAuthenticator >> label: aString [
+	"Set the label to aString, typically a user name or identification"
+
+	label := aString
 ]
 
 { #category : 'private' }
@@ -228,6 +270,36 @@ GoogleAuthenticator >> truncate: byteArray [
 	offset := byteArray last bitAnd: 16rF.
 	quad := byteArray copyFrom: offset + 1 to: offset + 4.
 	^ quad asInteger bitAt: 32 put: 0
+]
+
+{ #category : 'accessing' }
+GoogleAuthenticator >> uri [
+	^ ZnUrl new
+		scheme: #otpauth;
+		host: 'totp';
+		addPathSegment: self label;
+		queryAt: 'issuer' put: self issuer;
+		queryAt: 'digits' put: self codeLength printString;
+		queryAt: 'algorithm' put: self hashMode;
+		queryAt: 'period' put: self period printString;
+		queryAt: 'secret' put: self base32Secret;
+		yourself
+]
+
+{ #category : 'initialization' }
+GoogleAuthenticator >> uri: uri [
+	| url |
+	url := uri asUrl.
+	self assert: url scheme = #otpauth.
+	self assert: url host = 'totp'.
+	self label: ($: split: url firstPathSegment) last.
+	url queryAt: #issuer ifPresent: [ :string | self issuer: string ].
+	(self hasIssuer not and: [ url firstPathSegment includes: $: ])
+		ifTrue: [ self issuer: ($: split: url firstPathSegment) first ].
+	url queryAt: #digits ifPresent: [ :string | self period: string asInteger ].
+	url queryAt: #algorithm ifPresent: [ :string | Smalltalk at: string asSymbol ifPresent: [ :class | self hashMode: class ] ].
+	url queryAt: #period ifPresent: [ :string | self period: string asInteger ].
+	url queryAt: #secret ifPresent: [ :string | self base32Secret: string ]
 ]
 
 { #category : 'initialization' }
